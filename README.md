@@ -1,2 +1,2 @@
 # openshift-aws-ecr
-Autologin on AWS ECR within Openshift clusters
+Autologin on AWS ECR within Kubernetes and Openshift clusters
