@@ -1,0 +1,23 @@
+apiVersion: batch/v2alpha1
+kind: CronJob
+metadata:
+  name: aws-ecr-login
+spec:
+  schedule: "*/12 1 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: aws-ecr-login
+            image: engapa/aws-ecr-login:latest
+            restartPolicy: OnFailure
+            env:
+            - name:  REGISTRY_IDS
+              value: ''
+            - name:  AWS_DEFAULT_REGION
+              value: ''
+            - name:  AWS_ACCESS_KEY_ID
+              value: ''
+            - name:  AWS_SECRET_ACCESS_KEY
+              value: ''

@@ -1,0 +1,66 @@
+kind: Template
+apiVersion: v1
+metadata:
+  name: aws-ecr-login
+  annotations:
+    openshift.io/display-name: AWS ECR autologin and secret
+    description: Autologin in AWS ECR and update the secret to authenticate dynamically.
+    iconClass: icon-database
+    tags: database,aws-ecr-login
+labels:
+  template: aws-ecr-login
+  component: aws-ecr
+  cloud: aws
+parameters:
+- name: NAME
+  value: aws-ecr-login
+  required: true
+- name: SOURCE_IMAGE
+  description: Container image source
+  value: engapa/aws-ecr-login
+  required: true
+- name: VERSION_IMAGE
+  description: Container image source
+  value: latest
+  required: true
+- name: REGISTRY_IDS
+  description: The registry id in AWS ECR service. This value may be a list with a blank character as separator. If this value isn't provided
+  value: ""
+  required: false
+- name: AWS_DEFAULT_REGION
+  description: AWS default region
+  value: ""
+  required: true
+- name: AWS_ACCESS_KEY_ID
+  description: AWS Access key id
+  value: ""
+  required: true
+- name: AWS_SECRET_ACCESS_KEY
+  description: AWS Secret Access key
+  value: ""
+  required: true
+
+objects:
+- apiVersion: batch/v2alpha1
+  kind: CronJob
+  metadata:
+    name: ${NAME}
+  spec:
+    schedule: "*/12 1 * * *"
+    jobTemplate:
+      spec:
+        template:
+          spec:
+            containers:
+            - name: ${NAME}
+              image: ${SOURCE_IMAGE}:${VERSION_IMAGE}
+              restartPolicy: OnFailure
+              env:
+              - name:  REGISTRY_IDS
+                value: ${REGISTRY_IDS}
+              - name:  AWS_DEFAULT_REGION
+                value: ${AWS_DEFAULT_REGION}
+              - name:  AWS_ACCESS_KEY_ID
+                value: ${AWS_ACCESS_KEY_ID}
+              - name:  AWS_SECRET_ACCESS_KEY
+                value: ${AWS_SECRET_ACCESS_KEY}
