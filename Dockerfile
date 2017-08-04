@@ -1,4 +1,4 @@
-FROM python:alpine
+FROM python:3
 MAINTAINER Enrique Garcia <engapa@gmail.com>
 
 # Required environment variables
@@ -7,8 +7,9 @@ ENV REGISTRY_IDS='' \
     AWS_ACCESS_KEY_ID='' \
     AWS_SECRET_ACCESS_KEY=''
 
-RUN pip install -U pip awscli
+RUN set -x \
+    && pip install -U pip awscli
 
-ADD entrypoint.sh .
+ADD cmd.sh .
 
-ENTRYPOINT ./entrypoint.sh
+RUN chmod a+x cmd.sh
