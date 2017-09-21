@@ -2,6 +2,7 @@ kind: Template
 apiVersion: v1
 metadata:
   name: aws-ecr-login
+  namespace: ${NAMESPACE}
   annotations:
     openshift.io/display-name: AWS ECR autologin and secret
     description: Autologin in AWS ECR and update the secret to authenticate dynamically.
@@ -15,36 +16,109 @@ parameters:
 - name: NAME
   value: aws-ecr-login
   required: true
+- name: NAMESPACE
+  value: default
+  required: true
 - name: SOURCE_IMAGE
   description: Container image source
-  value: engapa/aws-ecr-login
+  value: engapa/aws-ecr-login-oc
   required: true
 - name: VERSION_IMAGE
   description: Container image source
   value: latest
   required: true
-- name: REGISTRY_IDS
-  description: The registry id in AWS ECR service. This value may be a list with a blank character as separator. If this value isn't provided
-  value: ""
+- name: REGISTRY_ID
+  description: The registry id in AWS ECR service.
+  value:
   required: false
 - name: AWS_DEFAULT_REGION
   description: AWS default region
-  value: ""
   required: true
 - name: AWS_ACCESS_KEY_ID
   description: AWS Access key id
-  value: ""
   required: true
 - name: AWS_SECRET_ACCESS_KEY
   description: AWS Secret Access key
-  value: ""
   required: true
+- name: PROJECTS
+  description: >
+    A list of project names which aws ecr secret will be associated to.
+    You can specify a list, use blank character as separator (e.g 'default myproject').
+  required: true
+  value: default
+- name: SERVICE_ACCOUNT
+  description: >
+    A list of service account names which aws ecr secret will be associated to.
+    You can specify a list, use blank character as separator (e.g 'default myproject').
+  required: true
+  value: default
+- name: PULL_MOUNT_OPTION
+  description: >
+    Use the secret as pull and/or mount.
+    Possible values are: 'pull','pull,mount' or 'mount' (default value is 'pull')
+  required: true
+  value: pull
 
 objects:
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: ${NAME}
+    namespace: ${NAMESPACE}
+  stringData:
+    aws-ecr-registry: ${REGISTRY_ID}
+    aws-default-region: ${AWS_DEFAULT_REGION}
+    aws-access-key-id: ${AWS_ACCESS_KEY_ID}
+    aws-secret-access-key: ${AWS_SECRET_ACCESS_KEY}
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: ${NAME}
+    namespace: ${NAMESPACE}
+- apiVersion: v1
+  kind: ClusterRole
+  metadata:
+    name: ${NAME}
+    namespace: ${NAMESPACE}
+  rules:
+  - resources:
+    - projects
+    verbs:
+    - get
+    - list
+    - watch
+  - resources:
+    - secrets
+    - serviceaccounts
+    verbs:
+    - '*'
+- apiVersion: apiVersion: rbac.authorization.k8s.io/v1beta1
+  kind: ClusterRoleBinding
+  metadata:
+    name: ${NAME}
+    namespace: ${NAMESPACE}
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: ${NAME}
+  subjects:
+  - kind: ServiceAccount
+    name: ${NAME}
+    namespace: ${NAMESPACE}
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: ${NAME}
+    namespace: ${NAMESPACE}
+  data:
+    pull_mount_option: ${PULL_MOUNT_OPTION}
+    projects: ${PROJECTS}
+    service_accounts: ${SERVICE_ACCOUNTS}
 - apiVersion: batch/v2alpha1
   kind: CronJob
   metadata:
     name: ${NAME}
+    namespace: ${NAMESPACE}
   spec:
     schedule: "*/12 1 * * *"
     jobTemplate:
@@ -53,14 +127,45 @@ objects:
           spec:
             containers:
             - name: ${NAME}
+              serviceAccount: ${NAME}
               image: ${SOURCE_IMAGE}:${VERSION_IMAGE}
               restartPolicy: OnFailure
+              imagePullPolicy: Always
               env:
-              - name:  REGISTRY_IDS
-                value: ${REGISTRY_IDS}
-              - name:  AWS_DEFAULT_REGION
-                value: ${AWS_DEFAULT_REGION}
-              - name:  AWS_ACCESS_KEY_ID
-                value: ${AWS_ACCESS_KEY_ID}
-              - name:  AWS_SECRET_ACCESS_KEY
-                value: ${AWS_SECRET_ACCESS_KEY}
+              # AWS ECR CREDENTIALS (static, Secret source)
+              - name: REGISTRY_ID
+                valueFrom:
+                  secretKeyRef:
+                    key: aws-ecr-registry
+                    name: ${NAME}-creds
+              - name: AWS_DEFAULT_REGION
+                valueFrom:
+                  secretKeyRef:
+                    key: aws-default-region
+                    name: ${NAME}-creds
+              - name: AWS_ACCESS_KEY_ID
+                valueFrom:
+                  secretKeyRef:
+                    key: aws-access-key-id
+                    name: ${NAME}-creds
+              - name: AWS_SECRET_ACCESS_KEY
+                valueFrom:
+                  secretKeyRef:
+                    key: aws-secret-access-key
+                    name: ${NAME}-creds
+              # PROJECTS, SERVICE_ACCOUNTS, OPTION_FOR (dynamic, ConfigMap source)
+              - name: PROJECTS
+                valueFrom:
+                  configMapKeyRef:
+                    key: projects
+                    name: ${NAME}
+              - name: SERVICE_ACCOUNTS
+                valueFrom:
+                  configMapKeyRef:
+                    key: service_accounts
+                    name: ${NAME}
+              - name: OPTION_FOR
+                valueFrom:
+                  configMapKeyRef:
+                    key: pull_mount_option
+                    name: ${NAME}
