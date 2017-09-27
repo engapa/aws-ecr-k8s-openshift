@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: Template
+metadata:
+  name: aws-ecr-login-builder
+  annotations:
+    description: AWS ECR image build template
+    openshift.io/display-name: AWS ECR Image Builder
+    iconClass: icon-database
+    tags: database,aws,ecr
+labels:
+  template: aws-ecr-login-builder
+  component: aws-ecr
+
+parameters:
+- name: GITHUB_REPOSITORY
+  value: "https://github.com/engapa/aws-ecr-k8s-openshift"
+  description: Source code respository (Github)
+  required: true
+- name: GITHUB_REF
+  description: Github source ref
+  value: "master"
+  required: true
+- name: GITHUB_HOOK_SECRET
+  description: Secret to notify a change from Github.
+  value: "secretito"
+  required: false
+- name: IMAGE_STREAM_NAME
+  description:
+  value: "aws-ecr-login"
+  required: true
+- name: IMAGE_STREAM_VERSION
+  description:
+  value: "latest"
+  required: true
+
+objects:
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    name: ${IMAGE_STREAM_NAME}
+  spec:
+    lookupPolicy:
+      local: true
+
+- kind: BuildConfig
+  apiVersion: v1
+  metadata:
+    name: aws-ecr-login-builder
+  spec:
+    runPolicy: Serial
+    triggers:
+      - type: GitHub
+        github:
+          secret: ${GITHUB_HOOK_SECRET}
+      - type: ConfigChange
+    source:
+      git:
+        uri: ${GITHUB_REPOSITORY}
+        ref: ${GITHUB_REF}
+    strategy:
+      type: Docker
+    output:
+      to:
+        kind: ImageStreamTag
+        name: "${IMAGE_STREAM_NAME}:${IMAGE_STREAM_VERSION}"
